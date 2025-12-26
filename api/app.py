@@ -50,7 +50,7 @@ async def startup_event():
     global bg_remover
     print("🚀 Loading WithoutBG model...", flush=True)
     try:
-        bg_remover = WithoutBG()
+        bg_remover = WithoutBG.opensource()
         print("✅ WithoutBG loaded successfully", flush=True)
     except Exception as e:
         print(f"❌ Failed to load WithoutBG: {e}", flush=True)
@@ -256,7 +256,7 @@ async def remove_background(
             raise HTTPException(status_code=500, detail="Model not loaded")
         
         print("🔄 Processing with WithoutBG...", flush=True)
-        output_image = bg_remover.remove(input_image)
+        output_image = bg_remover.remove_background(input_image)
         print(f"✅ Background removed. Output size: {output_image.size}", flush=True)
 
         print("📦 Encoding to PNG...", flush=True)
