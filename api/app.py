@@ -256,7 +256,7 @@ async def remove_background(
             raise HTTPException(status_code=500, detail="Model not loaded")
         
         print("🔄 Processing with WithoutBG...", flush=True)
-        output_image = bg_remover(input_image)
+        output_image = bg_remover.remove(input_image)
         print(f"✅ Background removed. Output size: {output_image.size}", flush=True)
 
         print("📦 Encoding to PNG...", flush=True)
