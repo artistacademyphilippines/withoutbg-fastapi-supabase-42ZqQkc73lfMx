@@ -48,10 +48,11 @@ bg_remover = None
 @app.on_event("startup")
 async def startup_event():
     global bg_remover
-    print("🚀 Loading WithoutBG model...", flush=True)
+    print("🚀 Loading WithoutBG Focus v1.5 model...", flush=True)
     try:
-        bg_remover = WithoutBG.opensource()
-        print("✅ WithoutBG loaded successfully", flush=True)
+        # Use Focus v1.5 - the best quality model
+        bg_remover = WithoutBG.opensource(model="Focus-v1.5")
+        print("✅ WithoutBG Focus v1.5 loaded successfully", flush=True)
     except Exception as e:
         print(f"❌ Failed to load WithoutBG: {e}", flush=True)
         traceback.print_exc()
@@ -255,24 +256,31 @@ async def remove_background(
             await refund_credit(user_email)
             raise HTTPException(status_code=500, detail="Model not loaded")
         
-        print("🔄 Processing with WithoutBG...", flush=True)
+        print("🔄 Processing with WithoutBG Focus v1.5...", flush=True)
         output_image = bg_remover.remove_background(input_image)
-        print(f"✅ Background removed. Output size: {output_image.size}", flush=True)
+        print(f"✅ Background removed. Output size: {output_image.size}, mode: {output_image.mode}", flush=True)
 
-        print("📦 Encoding to PNG...", flush=True)
+        print("📦 Encoding to WebP with maximum quality...", flush=True)
         buffer = BytesIO()
-        output_image.save(buffer, format="PNG", optimize=True)
+        # Save as WebP with lossless compression to preserve maximum quality and transparency
+        output_image.save(
+            buffer, 
+            format="WEBP",
+            quality=100,
+            method=6,  # Maximum compression effort (0-6, 6 is slowest but best)
+            lossless=True  # Lossless compression preserves all quality
+        )
         buffer.seek(0)
         
         output_size = len(buffer.getvalue())
-        print(f"📊 Output PNG size: {output_size} bytes", flush=True)
+        print(f"📊 Output WebP size: {output_size} bytes", flush=True)
 
         encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
         print(f"✅ Base64 encoded: {len(encoded)} characters", flush=True)
 
         print("🎉 SUCCESS! Returning result", flush=True)
         return {
-            "data_received": f"data:image/png;base64,{encoded}",
+            "data_received": f"data:image/webp;base64,{encoded}",
             "remaining_credits": remaining_credits
         }
     except Exception as e:
