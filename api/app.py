@@ -46,10 +46,10 @@ bg_remover = None  # Will store the loaded model
 async def startup_event():
     """This runs once when the server starts"""
     global bg_remover
-    print("[√] Loading WithoutBG Focus v1.5 model...")
+    print("[√] Loading WithoutBG Focus v1.0 model...")
     try:
-        # Load the best quality model (Focus v1.5)
-        bg_remover = WithoutBG.opensource(model="Focus-v1.5")
+        # Load the Focus v1.0 model (best available in opensource)
+        bg_remover = WithoutBG.opensource()
         print("[√] Model loaded successfully")
     except Exception as e:
         print(f"[X] Failed to load model: {e}")
