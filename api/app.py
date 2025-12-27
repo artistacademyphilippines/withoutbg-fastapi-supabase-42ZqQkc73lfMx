@@ -77,7 +77,7 @@ async def get_user_credits(user_id: str) -> int:
     # Make HTTP GET request to Supabase
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            f"{SUPABASE_URL}/rest/v1/wondr_users?select=rembg_credits&uid=eq.{safe_user_id}",
+            f"{SUPABASE_URL}/rest/v1/wondr_users?select=rembg_credits&UID=eq.{safe_user_id}",
             headers={
                 "apikey": SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -89,6 +89,8 @@ async def get_user_credits(user_id: str) -> int:
     # Check if request to Supabase failed
     if response.status_code != 200:
         print(f"[X] Supabase GET failed: {response.status_code}")
+        print(f"[X] Response body: {response.text}")  # Show actual error
+        print(f"[X] Query URL: {SUPABASE_URL}/rest/v1/wondr_users?select=rembg_credits&UID=eq.{safe_user_id}")
         raise HTTPException(status_code=300, detail="Failed to connect to Supabase")
     
     # Parse the JSON response
@@ -130,7 +132,7 @@ async def deduct_credit(user_id: str) -> int:
     # Make HTTP PATCH request to update credits in Supabase
     async with httpx.AsyncClient() as client:
         response = await client.patch(
-            f"{SUPABASE_URL}/rest/v1/wondr_users?uid=eq.{safe_user_id}",
+            f"{SUPABASE_URL}/rest/v1/wondr_users?UID=eq.{safe_user_id}",
             headers={
                 "apikey": SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -169,7 +171,7 @@ async def refund_credit(user_id: str):
         # Add 1 credit back
         async with httpx.AsyncClient() as client:
             await client.patch(
-                f"{SUPABASE_URL}/rest/v1/wondr_users?uid=eq.{safe_user_id}",
+                f"{SUPABASE_URL}/rest/v1/wondr_users?UID=eq.{safe_user_id}",
                 headers={
                     "apikey": SUPABASE_SERVICE_KEY,
                     "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
