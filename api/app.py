@@ -26,6 +26,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Model
@@ -49,7 +50,7 @@ async def get_user_credits(user_id: str) -> int:
     
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"{SUPABASE_URL}/rest/v1/wondr_users?select=rembg_credits&uid=eq.{safe_id}",
+            f"{SUPABASE_URL}/rest/v1/wondr_users?select=rembg_credits&UID=eq.{safe_id}",
             headers={
                 "apikey": SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -80,7 +81,7 @@ async def deduct_credit(user_id: str) -> int:
     
     async with httpx.AsyncClient() as client:
         res = await client.patch(
-            f"{SUPABASE_URL}/rest/v1/wondr_users?uid=eq.{safe_id}",
+            f"{SUPABASE_URL}/rest/v1/wondr_users?UID=eq.{safe_id}",
             headers={
                 "apikey": SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -106,7 +107,7 @@ async def refund_credit(user_id: str):
         
         async with httpx.AsyncClient() as client:
             await client.patch(
-                f"{SUPABASE_URL}/rest/v1/wondr_users?uid=eq.{safe_id}",
+                f"{SUPABASE_URL}/rest/v1/wondr_users?UID=eq.{safe_id}",
                 headers={
                     "apikey": SUPABASE_SERVICE_KEY,
                     "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -126,6 +127,8 @@ async def root():
 
 @app.post("/")
 async def remove_background(request_data: RequestData, authorization: str = Header(None)):
+    user_id = None  # Track user_id for refunds
+    
     # Auth
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=100, detail="Invalid auth")
@@ -142,7 +145,18 @@ async def remove_background(request_data: RequestData, authorization: str = Head
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=100, detail="Invalid token")
     
-    # Credits
+    # Decode image FIRST (before deducting credits)
+    try:
+        img_data = base64.b64decode(request_data.data_sent.split(",")[1] if "," in request_data.data_sent else request_data.data_sent)
+        input_img = Image.open(BytesIO(img_data)).convert("RGB")
+    except:
+        raise HTTPException(status_code=500, detail="Invalid image")
+    
+    # Check model is loaded BEFORE deducting credits
+    if not bg_remover:
+        raise HTTPException(status_code=500, detail="Model not loaded")
+    
+    # Credits - only deduct after validation
     try:
         remaining = await deduct_credit(user_id)
     except HTTPException:
@@ -150,20 +164,8 @@ async def remove_background(request_data: RequestData, authorization: str = Head
     except:
         raise HTTPException(status_code=300, detail="Credit error")
     
-    # Decode image
-    try:
-        img_data = base64.b64decode(request_data.data_sent.split(",")[1] if "," in request_data.data_sent else request_data.data_sent)
-        input_img = Image.open(BytesIO(img_data)).convert("RGB")
-    except:
-        await refund_credit(user_id)
-        raise HTTPException(status_code=500, detail="Invalid image")
-    
     # Process
     try:
-        if not bg_remover:
-            await refund_credit(user_id)
-            raise HTTPException(status_code=500, detail="Model not loaded")
-        
         output_img = bg_remover.remove_background(input_img)
         
         buffer = BytesIO()
@@ -179,4 +181,3 @@ async def remove_background(request_data: RequestData, authorization: str = Head
     except:
         await refund_credit(user_id)
         raise HTTPException(status_code=500, detail="Processing failed")
-
