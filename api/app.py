@@ -49,7 +49,7 @@ async def get_user_credits(user_id: str) -> int:
     
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"{SUPABASE_URL}/rest/v1/wondr_users?select=rembg_credits&UID=eq.{safe_id}",
+            f"{SUPABASE_URL}/rest/v1/wondr_users?select=rembg_credits&uid=eq.{safe_id}",
             headers={
                 "apikey": SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -80,7 +80,7 @@ async def deduct_credit(user_id: str) -> int:
     
     async with httpx.AsyncClient() as client:
         res = await client.patch(
-            f"{SUPABASE_URL}/rest/v1/wondr_users?UID=eq.{safe_id}",
+            f"{SUPABASE_URL}/rest/v1/wondr_users?uid=eq.{safe_id}",
             headers={
                 "apikey": SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -106,7 +106,7 @@ async def refund_credit(user_id: str):
         
         async with httpx.AsyncClient() as client:
             await client.patch(
-                f"{SUPABASE_URL}/rest/v1/wondr_users?UID=eq.{safe_id}",
+                f"{SUPABASE_URL}/rest/v1/wondr_users?uid=eq.{safe_id}",
                 headers={
                     "apikey": SUPABASE_SERVICE_KEY,
                     "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -179,3 +179,4 @@ async def remove_background(request_data: RequestData, authorization: str = Head
     except:
         await refund_credit(user_id)
         raise HTTPException(status_code=500, detail="Processing failed")
+
