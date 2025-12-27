@@ -65,19 +65,19 @@ class RequestData(BaseModel):
 # ============================================
 # HELPER: GET USER CREDITS FROM SUPABASE
 # ============================================
-async def get_user_credits(user_email: str) -> int:
+async def get_user_credits(user_id: str) -> int:
     """
-    Fetches the user's credit balance from Supabase
+    Fetches the user's credit balance from Supabase using UID
     Returns: number of credits (int)
     Raises: HTTPException if connection fails or user not found
     """
     from urllib.parse import quote
-    safe_email = quote(user_email)  # Encode email for URL safety
+    safe_user_id = quote(user_id)  # Encode UID for URL safety
     
     # Make HTTP GET request to Supabase
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            f"{SUPABASE_URL}/rest/v1/wondr_users?select=rembg_credits&email=eq.{safe_email}",
+            f"{SUPABASE_URL}/rest/v1/wondr_users?select=rembg_credits&uid=eq.{safe_user_id}",
             headers={
                 "apikey": SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -96,41 +96,41 @@ async def get_user_credits(user_email: str) -> int:
     
     # Check if user exists in database
     if not data:
-        print(f"[X] User not found: {user_email}")
+        print(f"[X] User not found: {user_id}")
         raise HTTPException(status_code=300, detail="User not found in database")
     
     # Return the credit balance
     credits = data[0]["rembg_credits"]
-    print(f"[√] User {user_email} has {credits} credits")
+    print(f"[√] User {user_id} has {credits} credits")
     return credits
 
 # ============================================
 # HELPER: DEDUCT ONE CREDIT FROM USER
 # ============================================
-async def deduct_credit(user_email: str) -> int:
+async def deduct_credit(user_id: str) -> int:
     """
-    Deducts 1 credit from user's balance
+    Deducts 1 credit from user's balance using UID
     Returns: new credit balance (int)
     Raises: HTTPException if insufficient credits or connection fails
     """
     # First, get current credits
-    current_credits = await get_user_credits(user_email)
+    current_credits = await get_user_credits(user_id)
     
     # Check if user has enough credits
     if current_credits <= 0:
-        print(f"[X] Insufficient credits for {user_email}")
+        print(f"[X] Insufficient credits for {user_id}")
         raise HTTPException(status_code=400, detail="No credits remaining")
     
     # Calculate new balance
     new_credits = current_credits - 1
     
     from urllib.parse import quote
-    safe_email = quote(user_email)
+    safe_user_id = quote(user_id)
     
     # Make HTTP PATCH request to update credits in Supabase
     async with httpx.AsyncClient() as client:
         response = await client.patch(
-            f"{SUPABASE_URL}/rest/v1/wondr_users?email=eq.{safe_email}",
+            f"{SUPABASE_URL}/rest/v1/wondr_users?uid=eq.{safe_user_id}",
             headers={
                 "apikey": SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -153,22 +153,23 @@ async def deduct_credit(user_email: str) -> int:
 # ============================================
 # HELPER: REFUND CREDIT IF PROCESSING FAILS
 # ============================================
-async def refund_credit(user_email: str):
+async def refund_credit(user_id: str):
     """
     Adds 1 credit back to user's balance if image processing fails
     This ensures users don't lose credits when errors occur
+    Uses UID to identify the user
     """
     try:
         # Get current credits
-        current_credits = await get_user_credits(user_email)
+        current_credits = await get_user_credits(user_id)
         
         from urllib.parse import quote
-        safe_email = quote(user_email)
+        safe_user_id = quote(user_id)
         
         # Add 1 credit back
         async with httpx.AsyncClient() as client:
             await client.patch(
-                f"{SUPABASE_URL}/rest/v1/wondr_users?email=eq.{safe_email}",
+                f"{SUPABASE_URL}/rest/v1/wondr_users?uid=eq.{safe_user_id}",
                 headers={
                     "apikey": SUPABASE_SERVICE_KEY,
                     "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -178,7 +179,7 @@ async def refund_credit(user_email: str):
                 },
                 json={"rembg_credits": current_credits + 1}
             )
-        print(f"[√] Credit refunded to {user_email}")
+        print(f"[√] Credit refunded to {user_id}")
     except Exception as e:
         print(f"[X] Refund failed: {e}")
 
@@ -225,7 +226,7 @@ async def remove_background(
     token = authorization.split(" ")[1]
     
     # ----------------------------------------
-    # STEP 2: DECODE TOKEN TO GET USER EMAIL
+    # STEP 2: DECODE TOKEN TO GET USER ID
     # ----------------------------------------
     try:
         # Decode the JWT token using the secret key
@@ -236,15 +237,15 @@ async def remove_background(
             options={"verify_aud": False}  # Don't verify audience
         )
         
-        # Extract user email from token payload
-        user_email = payload.get("email")
+        # Extract user ID (UID) from token payload
+        user_id = payload.get("sub")  # "sub" claim contains the user ID
         
-        # Check if email exists in token
-        if not user_email:
-            print("[X] Email missing in token")
+        # Check if user ID exists in token
+        if not user_id:
+            print("[X] User ID missing in token")
             raise HTTPException(status_code=100, detail="Invalid token payload")
         
-        print(f"[√] User authenticated: {user_email}")
+        print(f"[√] User authenticated: {user_id}")
         
     except jwt.ExpiredSignatureError:
         # Token has expired
@@ -260,7 +261,7 @@ async def remove_background(
     # ----------------------------------------
     try:
         # This will check credits and deduct 1 if available
-        remaining_credits = await deduct_credit(user_email)
+        remaining_credits = await deduct_credit(user_id)
         print(f"[√] Credits deducted. Remaining: {remaining_credits}")
     except HTTPException:
         # If it's already an HTTPException, just re-raise it
@@ -297,7 +298,7 @@ async def remove_background(
     except Exception as e:
         # Image decode failed - refund credit and return error
         print(f"[X] Failed to decode image: {e}")
-        await refund_credit(user_email)
+        await refund_credit(user_id)
         raise HTTPException(status_code=500, detail="Invalid image data")
     
     # ----------------------------------------
@@ -307,7 +308,7 @@ async def remove_background(
         # Check if model is loaded
         if bg_remover is None:
             print("[X] Model not loaded")
-            await refund_credit(user_email)
+            await refund_credit(user_id)
             raise HTTPException(status_code=500, detail="Model not loaded")
         
         # Process the image with WithoutBG
@@ -352,5 +353,5 @@ async def remove_background(
     except Exception as e:
         # Processing failed - refund credit and return error
         print(f"[X] Processing failed: {e}")
-        await refund_credit(user_email)
+        await refund_credit(user_id)
         raise HTTPException(status_code=500, detail="Processing failed")
